@@ -10,14 +10,13 @@
   <h5>From '<span id="host"></span>'</h5>
   <h5>To 'http://xyz.lvho.st:3000/CONTRIBUTING.md'</h5>
 
-  <script src="../../dist/0.5/xdomain.js" slave="http://xyz.lvho.st:3000/example/local/proxy1.html"></script>
+  <script src="../../dist/0.6/xdomain.js" slave="http://xyz.lvho.st:3000/example/local/proxy1.html"></script>
 
   <script src="//ajax.googleapis.com/ajax/libs/jquery/1/jquery.js"></script>
 
   <pre id='output'></pre>
 
   <script type="text/javascript">
-
     var href = 'http://abc.lvho.st:3000/example/local/index.html';
     if(window.location.href !== href)
       window.location.href = href;
@@ -26,18 +25,6 @@
     $("#host").html(xdomain.origin);
     //jquery ajax call
     $("#output").load('http://xyz.lvho.st:3000/CONTRIBUTING.md');
-
-    // $.ajax({
-    //   url:'http://echo.jpillora.com/foo/bar/delay/2500/test',
-    //   timeout: 2000,
-    //   success: function(data) {
-    //     $("#output").text(JSON.stringify(data, null, 2));
-    //   },
-    //   error: function(resp) {
-    //     $("#output").text("ERROR! " + JSON.stringify(resp, null, 2));
-    //   }
-    // });
-
   </script>
 
 </body>

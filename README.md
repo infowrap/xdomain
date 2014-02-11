@@ -22,8 +22,8 @@ conjunction with any library.
   * No need to use IE's silly [XDomainRequest Object](http://msdn.microsoft.com/en-us/library/ie/cc288060.aspx)
 * Easy XHR access to file servers:
   * [Amazon](http://jpillora.com/xdomain)
-  * Dropbox
-* Includes [XHook](http://jpillora.com/xhook) and its [Features](https://github.com/jpillora/xhook#features)
+  * [Dropbox](http://jpillora.com/xdomain/example/dropbox)
+* Includes [XHook](http://jpillora.com/xhook) and its [features](https://github.com/jpillora/xhook#features)
 * `proxy.html` files (slaves) may:
   * White-list domains
   * White-list paths using regular expressions (e.g. only allow API calls: `/^\/api/`)
@@ -31,11 +31,8 @@ conjunction with any library.
 
 ## Download
 
-* Development [xdomain.js](http://jpillora.com/xdomain/dist/0.5/xdomain.js) 16KB
-* Production [xdomain.min.js](http://jpillora.com/xdomain/dist/0.5/xdomain.min.js) 7.5KB (1.8KB Gzip)
-
-    Note: It's **important** to include XDomain first as other libraries may
-    store a reference to `XMLHttpRequest` before XHook can patch it
+* Development [xdomain.js](http://jpillora.com/xdomain/dist/0.6/xdomain.js) 20KB
+* Production [xdomain.min.js](http://jpillora.com/xdomain/dist/0.6/xdomain.min.js) 9.3KB (2.3KB Gzip)
 
 ## Live Demos
 
@@ -45,25 +42,28 @@ conjunction with any library.
 
 * [Serverless S3 Client](http://jpillora.com/s3hook)
 
-* [XDomain Playground](http://jpillora.com/xdomain/example/echo)
-
 ## Browser Support
 
 All except IE6/7 as they don't have `postMessage`
 
 ## Quick Usage
 
+Note: It's **important** to include XDomain before any other library.
+When XDomain loads, XHook replaces the current `window.XMLHttpRequest`.
+So if another library saves a reference to the original `window.XMLHttpRequest`
+and uses that, XHook won't be able to intercept those requests.
+
 1. On your slave domain (`http://xyz.example.com`), create a small `proxy.html` file:
   
     ``` html
     <!DOCTYPE HTML>
-    <script src="http://jpillora.com/xdomain/dist/0.5/xdomain.min.js" master="http://abc.example.com"></script>
+    <script src="http://jpillora.com/xdomain/dist/0.6/xdomain.min.js" master="http://abc.example.com"></script>
     ```
 
 2. Then, on your master domain (`http://abc.example.com`), point to your new `proxy.html`:
 
     ``` html
-    <script src="http://jpillora.com/xdomain/dist/0.5/xdomain.min.js" slave="http://xyz.example.com/proxy.html"></script>
+    <script src="http://jpillora.com/xdomain/dist/0.6/xdomain.min.js" slave="http://xyz.example.com/proxy.html"></script>
     ```
 
 3. **And that's it!** Now, on your master domain, any XHR to `http://xyz.example.com` will automagically work: 
@@ -91,15 +91,14 @@ All except IE6/7 as they don't have `postMessage`
 The following two snippets are equivalent:
 
 ``` html
-<script src="http://jpillora.com/xdomain/dist/0.5/xdomain.min.js" master="http://abc.example.com"></script>
+<script src="http://jpillora.com/xdomain/dist/0.6/xdomain.min.js" master="http://abc.example.com"></script>
 ```
+
 ``` html
-<script src="http://jpillora.com/xdomain/dist/0.5/xdomain.min.js"></script>
+<script src="http://jpillora.com/xdomain/dist/0.6/xdomain.min.js"></script>
 <script>
-xdomain({
-  masters: {
-    'http://abc.example.com': /.*/
-  }
+xdomain.masters({
+  'http://abc.example.com': /.*/
 });
 </script>
 ```
@@ -109,24 +108,29 @@ in the `object`, see API below.
 
 ## API
 
-### `xdomain`(`object`)
+### `xdomain.slaves`(`slaves`)
 
-If object contains:
-
-* ### `slaves`
-
-  Then `xdomain` will load as a master
+  Will initialize as a master
   
-  Each slave must be defined as: `origin` -> `proxy file`
+  Each of the `slaves` must be defined as: `origin`: `proxy file`
   
-  An object is used to *list* slaves to reinforce the idea
-  that we need one proxy file per origin.
+  The `slaves` object is used as a *list* slaves to force one proxy file per origin.
 
-* ### `masters`
+  The **Quick Usage** step 2 above is equivalent to:
+  ```html
+  <script src="http://jpillora.com/xdomain/dist/0.6/xdomain.min.js"></script>
+  <script>
+    xdomain.slaves({
+      "http://xyz.example.com": "/proxy.html"
+    });
+  </script>
+  ```
 
-  Then `xdomain` will load as a slave
+### `xdomain.masters`(`masters`)
+
+  Will initialize as a master
   
-  Each master must be defined as: `origin` -> `allowed path` (RegExp) 
+  Each of the `masters` must be defined as: `origin`: `allowed path` (RegExp) 
   
   `origin` will also be converted to a regular expression by escaping all
   non alphanumeric chars, converting `*` into `.+` and wrapping with `^` and `$`.
@@ -137,27 +141,29 @@ If object contains:
   So you could use the following `proxy.html` to allow all subdomains of `example.com`:
   
   ```html
-  <script src="/dist/0.5/xdomain.min.js" data-master="http://*.example.com"></script>
+  <script src="/dist/0.6/xdomain.min.js" data-master="http://*.example.com"></script>
   ```
   
   Which is equivalent to:
   ```html
-  <script src="/dist/0.5/xdomain.min.js"></script>
+  <script src="/dist/0.6/xdomain.min.js"></script>
   <script>
-    xdomain({
-      masters: {
-        "http://*.example.com": /.*/
-      }
+    xdomain.masters({
+      "http://*.example.com": /.*/
     });
   </script>
   ```
   
   Therefore, you could allow ALL domains with the following `proxy.html`:
   ```html
-  <script src="/dist/0.5/xdomain.min.js" master="*"></script>
+  <!-- BEWARE: VERY INSECURE -->
+  <script src="/dist/0.6/xdomain.min.js" master="*"></script>
   ```
-  
-  Though this is NOT recommended.
+
+
+### `xdomain.debug` = `false`
+
+  When `true`, XDomain will log actions to console
 
 ## Conceptual Overview
 
@@ -177,12 +183,13 @@ the missing `JSON` and/or `postMessage` globals and will exit.
 
 Q: But I love CORS
 
-A: You shouldn't:
+A: You shouldn't. You should use XDomain because:
 
 * IE uses a different API (XDomainRequest) for CORS, XDomain normalizes this silliness.
+* The [CORS spec](http://www.w3.org/TR/cors/) is not as simple as it seems, XDomain allows you to use plain XHR instead.
 * On RESTful JSON API server, CORS will generating superfluous traffic by sending a
-  preflight OPTIONS request on all requests, except for GET and HEAD, .
-* Not everyone can change the HTTP headers on the server, but most people can drop in a `proxy.html` file.
+  preflight OPTIONS request on all requests, except for GET and HEAD.
+* Not everyone is able to modify HTTP headers on the server, but most can upload a `proxy.html` file.
 * Google also uses iframes as postMessage proxies instead of CORS in it's Google API JS SDK:
 
   ```html
@@ -190,13 +197,27 @@ A: You shouldn't:
   src="https://accounts.google.com/o/oauth2/postmessageRelay?..."> </iframe>
   ```
 
+## Troubleshooting
+
+Q: The browser is still sending a CORS request.
+
+A: Double check your slaves configuration against the examples.
+If your slaves configuration is correct, double check that you're
+including XDomain *before* `window.XMLHttpRequest` is referenced **anywhere**.
+The safest way to fix it is to include XDomain **first**, it has no dependancies,
+it only modifies `window.XMLHttpRequest`. If you can't, break where `xhr.send()`
+is called and if you're using the original `XMLHttpRequest`,
+`xhr.constructor == window.XMLHttpRequest` will be false.
+
 ## Contributing
 
 See [CONTRIBUTING](CONTRIBUTING.md) for instructions on how to build and run XDomain locally.
 
 ## Change Log
 
-v0.5.0 - Upgraded to XHook v1.
+v0.6.0 - Implements XHR2 functionality
+
+v0.6.0 - Upgraded to XHook v1.
 
 v0.4.0 - Now setting request body, duh.
 
@@ -208,7 +229,7 @@ v0.1.0 - Alpha
 
 #### MIT License
 
-Copyright © 2013 Jaime Pillora &lt;dev@jpillora.com&gt;
+Copyright © 2014 Jaime Pillora &lt;dev@jpillora.com&gt;
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the

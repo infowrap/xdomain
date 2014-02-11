@@ -1,7 +1,6 @@
-// XDomain - v0.5.6 - https://github.com/jpillora/xdomain
-// Jaime Pillora <dev@jpillora.com> - MIT Copyright 2013
-(function(window,document,undefined) {
-// XHook - v1.0.5 - https://github.com/jpillora/xhook
+// XDomain - v0.5.8 - https://github.com/jpillora/xdomain
+// Jaime Pillora <dev@jpillora.com> - MIT Copyright 2014
+(function(window,undefined) {// XHook - v1.0.6 - https://github.com/jpillora/xhook
 // Jaime Pillora <dev@jpillora.com> - MIT Copyright 2013
 (function(window,document,undefined) {
 var AFTER, BEFORE, EventEmitter, INVALID_PARAMS_ERROR, READY_STATE, XMLHttpRequest, convertHeaders, pluginEvents, xhook, _base,
@@ -133,7 +132,7 @@ window.XMLHttpRequest = function() {
   };
   readyBody = function() {
     facade.responseType = response.type || '';
-    facade.response = response.data || null;
+    facade.response = response.data || response.text || null;
     facade.responseText = response.text || response.data || '';
     facade.responseXML = response.xml || null;
   };
@@ -207,7 +206,13 @@ window.XMLHttpRequest = function() {
       msieEventObject.type = type;
       return msieEventObject;
     } else {
-      return new Event(type);
+      try {
+        return new Event(type);
+      } catch (_error) {
+        return {
+          type: type
+        };
+      }
     }
   };
   checkEvent = function(e) {
@@ -332,7 +337,6 @@ window.XMLHttpRequest = function() {
   facade.getAllResponseHeaders = function() {
     return convertHeaders(response.headers);
   };
-  facade.upload = EventEmitter();
   return facade;
 };
 
@@ -370,7 +374,7 @@ guid = function() {
 };
 
 parseUrl = function(url) {
-  if (/(https?:\/\/[^\/]+)(\/.*)?/.test(url)) {
+  if (/(https?:\/\/[^\/\?]+)(\/.*)?/.test(url)) {
     return {
       origin: RegExp.$1,
       path: RegExp.$2
@@ -667,4 +671,4 @@ for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
     }
   }
 }
-}(window,document));
+}(this));

@@ -1,8 +1,9 @@
-// XHook - v1.0.5 - https://github.com/jpillora/xhook
-// Jaime Pillora <dev@jpillora.com> - MIT Copyright 2013
-(function(window,document,undefined) {
-var AFTER, BEFORE, EventEmitter, INVALID_PARAMS_ERROR, READY_STATE, XMLHttpRequest, convertHeaders, pluginEvents, xhook, _base,
+// XHook - v1.1.4 - https://github.com/jpillora/xhook
+// Jaime Pillora <dev@jpillora.com> - MIT Copyright 2014
+(function(window,undefined) {var AFTER, BEFORE, COMMON_EVENTS, EventEmitter, FIRE, FormData, OFF, ON, READY_STATE, UPLOAD_EVENTS, XMLHTTP, convertHeaders, document, fakeEvent, mergeObjects, proxyEvents, slice, xhook, _base,
   __slice = [].slice;
+
+document = window.document;
 
 BEFORE = 'before';
 
@@ -10,7 +11,19 @@ AFTER = 'after';
 
 READY_STATE = 'readyState';
 
-INVALID_PARAMS_ERROR = "Invalid number or parameters. Please see API documentation.";
+ON = 'addEventListener';
+
+OFF = 'removeEventListener';
+
+FIRE = 'dispatchEvent';
+
+XMLHTTP = 'XMLHttpRequest';
+
+FormData = 'FormData';
+
+UPLOAD_EVENTS = ['load', 'loadend', 'loadstart'];
+
+COMMON_EVENTS = ['progress', 'abort', 'error', 'timeout'];
 
 (_base = Array.prototype).indexOf || (_base.indexOf = function(item) {
   var i, x, _i, _len;
@@ -23,13 +36,72 @@ INVALID_PARAMS_ERROR = "Invalid number or parameters. Please see API documentati
   return -1;
 });
 
-EventEmitter = function(ctx) {
-  var addEvent, emitter, events, listeners;
+slice = function(o, n) {
+  return Array.prototype.slice.call(o, n);
+};
+
+mergeObjects = function(src, dst) {
+  var k, v;
+  for (k in src) {
+    v = src[k];
+    if (k === "returnValue") {
+      continue;
+    }
+    try {
+      dst[k] = src[k];
+    } catch (_error) {}
+  }
+  return dst;
+};
+
+proxyEvents = function(events, from, to) {
+  var event, p, _i, _len;
+  p = function(event) {
+    return function(e) {
+      var clone, k, val;
+      clone = {};
+      for (k in e) {
+        if (k === "returnValue") {
+          continue;
+        }
+        val = e[k];
+        clone[k] = val === from ? to : val;
+      }
+      clone;
+      return to[FIRE](event, clone);
+    };
+  };
+  for (_i = 0, _len = events.length; _i < _len; _i++) {
+    event = events[_i];
+    from["on" + event] = p(event);
+  }
+};
+
+fakeEvent = function(type) {
+  var msieEventObject;
+  if (document.createEventObject != null) {
+    msieEventObject = document.createEventObject();
+    msieEventObject.type = type;
+    return msieEventObject;
+  } else {
+    try {
+      return new Event(type);
+    } catch (_error) {
+      return {
+        type: type
+      };
+    }
+  }
+};
+
+EventEmitter = function(nodeStyle) {
+  var emitter, events, listeners;
   events = {};
   listeners = function(event) {
     return events[event] || [];
   };
-  addEvent = function(event, callback, i) {
+  emitter = {};
+  emitter[ON] = function(event, callback, i) {
     events[event] = listeners(event);
     if (events[event].indexOf(callback) >= 0) {
       return;
@@ -37,50 +109,72 @@ EventEmitter = function(ctx) {
     i = i === undefined ? events[event].length : i;
     events[event].splice(i, 0, callback);
   };
-  emitter = {
-    listeners: function(event) {
-      return Array.prototype.slice.call(listeners(event));
-    },
-    on: function(event, callback, i) {
-      return addEvent(event, callback, i);
-    },
-    off: function(event, callback) {
-      var i;
-      i = listeners(event).indexOf(callback);
-      if (i === -1) {
-        return;
-      }
-      listeners(event).splice(i, 1);
-    },
-    fire: function() {
-      var args, event, listener, _i, _len, _ref;
-      event = arguments[0], args = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
-      _ref = listeners(event);
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        listener = _ref[_i];
-        listener.apply(ctx, args);
-      }
-    },
-    addEventListener: function(event, callback) {
-      return addEvent(event, callback);
+  emitter[OFF] = function(event, callback) {
+    var i;
+    i = listeners(event).indexOf(callback);
+    if (i === -1) {
+      return;
+    }
+    listeners(event).splice(i, 1);
+  };
+  emitter[FIRE] = function() {
+    var args, event, i, legacylistener, listener, _i, _len, _ref;
+    args = slice(arguments);
+    event = args.shift();
+    if (!nodeStyle) {
+      args[0] = mergeObjects(args[0], fakeEvent(event));
+    }
+    legacylistener = emitter["on" + event];
+    if (legacylistener) {
+      legacylistener.apply(undefined, args);
+    }
+    _ref = listeners(event).concat(listeners("*"));
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      listener = _ref[i];
+      listener.apply(undefined, args);
     }
   };
+  if (nodeStyle) {
+    emitter.listeners = function(event) {
+      return slice(listeners(event));
+    };
+    emitter.on = emitter[ON];
+    emitter.off = emitter[OFF];
+    emitter.fire = emitter[FIRE];
+    emitter.once = function(e, fn) {
+      var fire;
+      fire = function() {
+        emitter.off(e, fire);
+        return fn.apply(null, arguments);
+      };
+      return emitter.on(e, fire);
+    };
+    emitter.destroy = function() {
+      return events = {};
+    };
+  }
   return emitter;
 };
 
-pluginEvents = EventEmitter();
+xhook = EventEmitter(true);
 
-xhook = {};
+xhook.EventEmitter = EventEmitter;
 
 xhook[BEFORE] = function(handler, i) {
-  return pluginEvents.on(BEFORE, handler, i);
+  if (handler.length < 1 || handler.length > 2) {
+    throw "invalid hook";
+  }
+  return xhook[ON](BEFORE, handler, i);
 };
 
 xhook[AFTER] = function(handler, i) {
-  return pluginEvents.on(AFTER, handler, i);
+  if (handler.length < 2 || handler.length > 3) {
+    throw "invalid hook";
+  }
+  return xhook[ON](AFTER, handler, i);
 };
 
-convertHeaders = function(h, dest) {
+convertHeaders = xhook.headers = function(h, dest) {
   var header, headers, k, v, _i, _len;
   if (dest == null) {
     dest = {};
@@ -107,79 +201,88 @@ convertHeaders = function(h, dest) {
   }
 };
 
-xhook.headers = convertHeaders;
+xhook[FormData] = window[FormData];
 
-XMLHttpRequest = window.XMLHttpRequest;
+window[FormData] = function() {
+  var _this = this;
+  this.fd = new xhook[FormData];
+  this.entries = [];
+  this.append = function() {
+    var args;
+    args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+    _this.entries.push(args);
+    return _this.fd.append.apply(_this.fd, args);
+  };
+};
 
-window.XMLHttpRequest = function() {
-  var checkEvent, copyBody, copyHead, currentState, event, extractProps, facade, facadeEventEmitter, makeFakeEvent, readyBody, readyHead, request, response, setReadyState, transiting, xhr, _i, _len, _ref;
-  xhr = new XMLHttpRequest;
-  if (pluginEvents.listeners(BEFORE).length === 0 && pluginEvents.listeners(AFTER).length === 0) {
-    return xhr;
-  }
+xhook[XMLHTTP] = window[XMLHTTP];
+
+window[XMLHTTP] = function() {
+  var currentState, facade, readBody, readHead, request, response, setReadyState, transiting, writeBody, writeHead, xhr;
+  xhr = new xhook[XMLHTTP]();
   transiting = false;
-  request = {
-    headers: {}
-  };
-  response = null;
-  facadeEventEmitter = EventEmitter();
-  readyHead = function() {
-    facade.status = response.status;
-    facade.statusText = response.statusText;
-    response.headers || (response.headers = {});
-  };
-  readyBody = function() {
-    facade.responseType = response.type || '';
-    facade.response = response.data || null;
-    facade.responseText = response.text || response.data || '';
-    facade.responseXML = response.xml || null;
-  };
-  copyHead = function() {
-    var key, val, _ref, _results;
+  request = {};
+  request.headers = {};
+  response = {};
+  response.headers = {};
+  readHead = function() {
+    var key, val, _ref;
     response.status = xhr.status;
     response.statusText = xhr.statusText;
     _ref = convertHeaders(xhr.getAllResponseHeaders());
-    _results = [];
     for (key in _ref) {
       val = _ref[key];
       if (!response.headers[key]) {
-        _results.push(response.headers[key] = val);
-      } else {
-        _results.push(void 0);
+        response.headers[key] = val;
       }
     }
-    return _results;
   };
-  copyBody = function() {
-    response.type = xhr.responseType;
-    response.text = xhr.responseText;
+  readBody = function() {
+    try {
+      response.text = xhr.responseText;
+    } catch (_error) {}
+    try {
+      response.xml = xhr.responseXML;
+    } catch (_error) {}
     response.data = xhr.response || response.text;
-    return response.xml = xhr.responseXML;
+  };
+  writeHead = function() {
+    facade.status = response.status;
+    facade.statusText = response.statusText;
+  };
+  writeBody = function() {
+    facade.response = response.data || response.text || null;
+    facade.responseText = response.text || '';
+    facade.responseXML = response.xml || null;
   };
   currentState = 0;
   setReadyState = function(n) {
     var checkReadyState, hooks, process;
-    extractProps();
     checkReadyState = function() {
       while (n > currentState && currentState < 4) {
         facade[READY_STATE] = ++currentState;
+        if (currentState === 1) {
+          facade[FIRE]("loadstart", {});
+        }
         if (currentState === 2) {
-          readyHead();
+          writeHead();
         }
         if (currentState === 4) {
-          readyBody();
+          writeHead();
+          writeBody();
         }
-        facadeEventEmitter.fire("readystatechange", makeFakeEvent("readystatechange"));
+        facade[FIRE]("readystatechange", {});
         if (currentState === 4) {
-          facadeEventEmitter.fire("load", makeFakeEvent("load"));
-          facadeEventEmitter.fire("loadend", makeFakeEvent("loadend"));
+          facade[FIRE]("load", {});
+          facade[FIRE]("loadend", {});
         }
       }
     };
     if (n < 4) {
-      return checkReadyState();
+      checkReadyState();
+      return;
     }
-    hooks = pluginEvents.listeners(AFTER);
+    hooks = xhook.listeners(AFTER);
     process = function() {
       var hook;
       if (!hooks.length) {
@@ -191,125 +294,97 @@ window.XMLHttpRequest = function() {
         return process();
       } else if (hook.length === 3) {
         return hook(request, response, process);
-      } else {
-        throw INVALID_PARAMS_ERROR;
       }
     };
     process();
   };
-  makeFakeEvent = function(type) {
-    var msieEventObject;
-    if (window.document.createEventObject != null) {
-      msieEventObject = window.document.createEventObject();
-      msieEventObject.type = type;
-      return msieEventObject;
-    } else {
-      return new Event(type);
-    }
-  };
-  checkEvent = function(e) {
-    var clone, key, val;
-    clone = {};
-    for (key in e) {
-      val = e[key];
-      clone[key] = val === xhr ? facade : val;
-    }
-    return clone;
-  };
-  extractProps = function() {
-    var fn, key, _i, _len, _ref;
-    _ref = ['timeout'];
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      key = _ref[_i];
-      if (xhr[key] && request[key] === undefined) {
-        request[key] = xhr[key];
-      }
-    }
-    for (key in facade) {
-      fn = facade[key];
-      if (typeof fn === 'function' && /^on(\w+)/.test(key)) {
-        facadeEventEmitter.on(RegExp.$1, fn);
-      }
-    }
-  };
   xhr.onreadystatechange = function(event) {
     try {
       if (xhr[READY_STATE] === 2) {
-        copyHead();
-        setReadyState(2);
+        readHead();
       }
     } catch (_error) {}
     if (xhr[READY_STATE] === 4) {
       transiting = false;
-      copyHead();
-      copyBody();
-      setReadyState(4);
+      readHead();
+      readBody();
     }
+    setReadyState(xhr[READY_STATE]);
   };
-  _ref = ['abort', 'progress'];
-  for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-    event = _ref[_i];
-    xhr["on" + event] = function(obj) {
-      return facadeEventEmitter.fire(event, checkEvent(obj));
-    };
-  }
-  facade = {
-    withCredentials: false,
-    response: null,
-    status: 0
-  };
-  facade.addEventListener = function(event, fn) {
-    return facadeEventEmitter.on(event, fn);
-  };
-  facade.removeEventListener = facadeEventEmitter.off;
-  facade.dispatchEvent = function() {};
-  facade.open = function(method, url, async) {
+  facade = request.xhr = EventEmitter();
+  facade[ON]('progress', function() {
+    return setReadyState(3);
+  });
+  proxyEvents(COMMON_EVENTS, xhr, facade);
+  facade.withCredentials = false;
+  facade.response = null;
+  facade.status = 0;
+  facade.open = function(method, url, async, user, pass) {
     request.method = method;
     request.url = url;
-    request.async = async;
+    if (async === false) {
+      throw "sync xhr not supported by XHook";
+    }
+    request.user = user;
+    request.pass = pass;
     setReadyState(1);
   };
   facade.send = function(body) {
-    var hooks, process, send;
+    var hooks, k, modk, process, send, _i, _len, _ref;
+    _ref = ['type', 'timeout'];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      k = _ref[_i];
+      modk = k === "type" ? "responseType" : k;
+      request[k] = facade[modk];
+    }
     request.body = body;
     send = function() {
-      var header, value, _ref1;
-      response = {
-        headers: {}
-      };
+      var header, value, _j, _len1, _ref1, _ref2;
       transiting = true;
-      xhr.open(request.method, request.url, request.async);
-      if (request.timeout) {
-        xhr.timeout = request.timeout;
+      xhr.open(request.method, request.url, true, request.user, request.pass);
+      _ref1 = ['type', 'timeout'];
+      for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+        k = _ref1[_j];
+        modk = k === "type" ? "responseType" : k;
+        xhr[modk] = request[k];
       }
-      _ref1 = request.headers;
-      for (header in _ref1) {
-        value = _ref1[header];
+      _ref2 = request.headers;
+      for (header in _ref2) {
+        value = _ref2[header];
         xhr.setRequestHeader(header, value);
+      }
+      if (request.body instanceof window[FormData]) {
+        request.body = request.body.fd;
       }
       xhr.send(request.body);
     };
-    hooks = pluginEvents.listeners(BEFORE);
+    hooks = xhook.listeners(BEFORE);
     process = function() {
       var done, hook;
       if (!hooks.length) {
         return send();
       }
       done = function(resp) {
-        if (typeof resp === 'object' && typeof resp.status === 'number') {
-          response = resp;
+        if (typeof resp === 'object' && (typeof resp.status === 'number' || typeof response.status === 'number')) {
+          mergeObjects(resp, response);
           setReadyState(4);
-        } else {
-          return process();
+          return;
         }
+        process();
+      };
+      done.head = function(resp) {
+        mergeObjects(resp, response);
+        return setReadyState(2);
+      };
+      done.progress = function(resp) {
+        mergeObjects(resp, response);
+        return setReadyState(3);
       };
       hook = hooks.shift();
       if (hook.length === 1) {
         return done(hook(request));
       } else if (hook.length === 2) {
         return hook(request, done);
-      } else {
-        throw INVALID_PARAMS_ERROR;
       }
     };
     process();
@@ -318,7 +393,7 @@ window.XMLHttpRequest = function() {
     if (transiting) {
       xhr.abort();
     }
-    facadeEventEmitter.fire('abort', arguments);
+    facade[FIRE]('abort', {});
   };
   facade.setRequestHeader = function(header, value) {
     request.headers[header] = value;
@@ -329,9 +404,18 @@ window.XMLHttpRequest = function() {
   facade.getAllResponseHeaders = function() {
     return convertHeaders(response.headers);
   };
-  facade.upload = EventEmitter();
+  if (xhr.overrideMimeType) {
+    facade.overrideMimeType = function() {
+      return xhr.overrideMimeType.apply(xhr, arguments);
+    };
+  }
+  if (xhr.upload) {
+    facade.upload = request.upload = EventEmitter();
+    proxyEvents(COMMON_EVENTS.concat(UPLOAD_EVENTS), xhr.upload, facade.upload);
+  }
   return facade;
 };
 
-window.xhook = xhook;
-}(window,document));
+this.xhook = xhook;
+// (this.define || Object)((this.exports || this).xhook = xhook);
+}(this));
