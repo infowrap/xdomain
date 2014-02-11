@@ -1,6 +1,7 @@
 // XDomain - v0.6.1 - https://github.com/jpillora/xdomain
 // Jaime Pillora <dev@jpillora.com> - MIT Copyright 2014
-(function(window,undefined) {// XHook - v1.1.4 - https://github.com/jpillora/xhook
+(function(window,document,undefined) {
+// XHook - v1.1.4 - https://github.com/jpillora/xhook
 // Jaime Pillora <dev@jpillora.com> - MIT Copyright 2014
 (function(window,undefined) {var AFTER, BEFORE, COMMON_EVENTS, EventEmitter, FIRE, FormData, OFF, ON, READY_STATE, UPLOAD_EVENTS, XMLHTTP, convertHeaders, document, fakeEvent, mergeObjects, proxyEvents, slice, xhook, _base,
   __slice = [].slice;
@@ -418,8 +419,10 @@ window[XMLHTTP] = function() {
   return facade;
 };
 
-(this.define || Object)((this.exports || this).xhook = xhook);
+this.xhook = xhook;
+// (this.define || Object)((this.exports || this).xhook = xhook);
 }(this));
+
 var CHECK_INTERVAL, COMPAT_VERSION, XD_CHECK, addMasters, addSlaves, attrs, connect, console, createSocket, currentOrigin, feature, fn, frames, getFrame, guid, handler, initMaster, initSlave, instOf, jsonEncode, k, listen, log, masters, onMessage, parseUrl, prefix, prep, script, slaves, slice, sockets, startPostMessage, strip, toRegExp, warn, xdomain, _i, _j, _k, _len, _len1, _len2, _ref, _ref1, _ref2;
 
 slaves = null;
@@ -888,4 +891,4 @@ for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
 }
 
 startPostMessage();
-}(this));
+}(window,document));
